@@ -4,16 +4,19 @@ import aiohttp
 from aiogram import Bot, Dispatcher
 from aiogram.filters import Command
 from aiogram.types import Message
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from config import TOKEN
 from steam_api import get_steam_game_data
-from database import init_db, add_subscription
+from database import init_db, add_subscription, get_all_subscriptions, update_price
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
+scheduler = AsyncIOScheduler()
 
 async def main():
     init_db()
+    scheduler.start()
     await dp.start_polling(bot)
 
 
@@ -99,6 +102,42 @@ async def game_handler(message: Message):
 
     await message.answer(text)
 
+
+async def check_prices():
+    """Фоном проверяет  цены каждые 3 часа (это время можно изменить)"""
+    subscriptions = get_all_subscriptions()
+
+    async with aiohttp.ClientSession() as session:
+        for sub in subscriptions:
+            subscription_id = sub[0]
+            user_id = sub[1]
+            app_id = sub[2]
+            game_name = sub[3]
+            last_price = sub[4]
+
+            game = await get_steam_game_data(session, app_id)
+            if not game:
+                continue
+
+            price = game.get("price_overview")
+            if not price:
+                continue
+
+            discount = price.get("discount_percent")
+            new_price = price.get("final")
+
+            if last_price and new_price < last_price:
+                await bot.send_message(
+                    user_id,
+                    f"""На игру {game_name}  сейчас действует скидка 
+                    {discount} %. С учетом скидки, теперь цена {game_name}
+                     составляет {int(new_price / 100)}."""
+                )
+
+            update_price(subscription_id, new_price)
+
+
+scheduler.add_job(check_prices, "interval", hours=3)
 
 if __name__ == "__main__":
     asyncio.run(main())

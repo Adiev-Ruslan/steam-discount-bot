@@ -5,24 +5,10 @@ DB_NAME = "steam_bot.db"
 def get_connection():
     return sqlite3.connect(DB_NAME)
 
-def add_subscription(user_id, app_id, game_name, last_price):
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        INSERT INTO subscriptions
-        (user_id, app_id, game_name, last_price)
-        VALUES (?, ?, ?, ?)
-        """, (user_id, app_id, game_name, last_price)
-    )
-
-    conn.commit()
-    conn.close()
 
 def init_db():
     conn = get_connection()
     cursor = conn.cursor()
-
     cursor.execute("""
          CREATE TABLE IF NOT EXISTS subscriptions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -36,3 +22,42 @@ def init_db():
 
     conn.commit()
     conn.close()
+
+
+def add_subscription(user_id, app_id, game_name, last_price):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO subscriptions
+        (user_id, app_id, game_name, last_price)
+        VALUES (?, ?, ?, ?)
+        """, (user_id, app_id, game_name, last_price)
+    )
+
+    conn.commit()
+    conn.close()
+
+
+def get_all_subscriptions():
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM subscriptions")
+    subscriptions = cursor.fetchall()
+    conn.close()
+    return subscriptions
+
+
+def update_price(subscription_id, new_price):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE subscriptions 
+        SET last_price = ? 
+        WHERE id = ? 
+        """, (new_price, subscription_id)
+    )
+
+    conn.commit()
+    conn.close()
+
+
