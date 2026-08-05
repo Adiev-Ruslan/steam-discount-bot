@@ -8,7 +8,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from config import TOKEN
 from steam_api import get_steam_game_data
-from database import init_db, add_subscription, get_all_subscriptions, update_price
+from database import (init_db, add_subscription, get_all_subscriptions,
+                      update_price, get_subscriptions_by_user, remove_subscription)
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -52,8 +53,20 @@ async def subscription_handler(message: Message):
 
     user_id = message.from_user.id
     game_name = game.get("name")
-    price = game.get("price_overview")
 
+    subscriptions = get_subscriptions_by_user(user_id)
+    already_subscribed = False
+
+    for sub in subscriptions:
+        if sub[2] == app_id:
+            already_subscribed = True
+            break
+
+    if already_subscribed:
+        await message.answer(f"Среди Ваших подписок уже есть игра {game_name}.")
+        return
+
+    price = game.get("price_overview")
     if price:
         last_price = price.get("final")
     else:
@@ -61,6 +74,39 @@ async def subscription_handler(message: Message):
 
     add_subscription(user_id, app_id, game_name, last_price)
     await message.answer(f"Подписка на {game_name} оформлена ✅")
+
+
+@dp.message(Command("unsubscribe"))
+async def unsubscribe_handler(message: Message):
+    """
+    Отменяет отслеживание игры (по id)
+    """
+
+    args = message.text.split()
+    user_id = message.from_user.id
+    subscriptions = get_subscriptions_by_user(user_id)
+    game_name = None
+
+    if len(args) != 2:
+        await message.answer("Использование:\n/unsubscribe APP_ID")
+        return
+
+    try:
+        app_id = int(args[1])
+    except ValueError:
+        await message.answer("App ID должен быть числом")
+        return
+
+    for sub in subscriptions:
+        if sub[2] == app_id:
+            game_name = sub[3]
+            break
+
+    if game_name:
+        remove_subscription(user_id, app_id)
+        await message.answer(f"Вы больше не отслеживаете {game_name}.")
+    else:
+        await message.answer(f"В данный момент Вы не отслеживаете игру с id {app_id}.")
 
 
 @dp.message(Command("game"))
@@ -100,6 +146,35 @@ async def game_handler(message: Message):
     else:
         text = f"{name}\nЦена недоступна"
 
+    await message.answer(text)
+
+
+@dp.message(Command("mysubs"))
+async def my_subs_handler(message: Message):
+    """
+    Показывает список подписок (отслеживаний) на игры у конкретного пользоватея
+    """
+
+    user_id = message.from_user.id
+    subscriptions = get_subscriptions_by_user(user_id)
+
+    if not subscriptions:
+        await message.answer("Вы пока что не отслеживаете какие-либо игры. ")
+        return
+
+    lines = []
+    for sub in subscriptions:
+        game_name = sub[3]
+        last_price = sub[4]
+
+        if last_price:
+            price_text = f"{int(last_price / 100)} руб"
+        else:
+            price_text = "цена неизвестна"
+
+        lines.append(f"{game_name} - {price_text}")
+
+    text = "\n".join(lines)
     await message.answer(text)
 
 

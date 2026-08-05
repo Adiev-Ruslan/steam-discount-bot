@@ -38,10 +38,38 @@ def add_subscription(user_id, app_id, game_name, last_price):
     conn.close()
 
 
+def remove_subscription(user_id, app_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        DELETE FROM subscriptions
+        WHERE user_id = ? AND app_id = ?  
+        """, (user_id, app_id)
+    )
+
+    conn.commit()
+    conn.close()
+
+
 def get_all_subscriptions():
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM subscriptions")
+    subscriptions = cursor.fetchall()
+    conn.close()
+    return subscriptions
+
+
+def get_subscriptions_by_user(user_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT * FROM subscriptions 
+        WHERE user_id = ?
+        """, (user_id,)
+    )
+
     subscriptions = cursor.fetchall()
     conn.close()
     return subscriptions
